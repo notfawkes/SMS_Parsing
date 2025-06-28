@@ -92,10 +92,10 @@ android {
             keyPassword 'android'
         }
         release {
-            storeFile file('my-release-key.keystore')
-            storePassword 'Bala010706' // TODO: Replace with your keystore password
-            keyAlias 'my-key-alias'
-            keyPassword 'Bala010706' // TODO: Replace with your key password
+            storeFile file(System.getenv('MYAPP_UPLOAD_STORE_FILE') ?: project.hasProperty('MYAPP_UPLOAD_STORE_FILE') ? project.property('MYAPP_UPLOAD_STORE_FILE') : 'my-release-key.keystore')
+            storePassword System.getenv('MYAPP_UPLOAD_STORE_PASSWORD') ?: project.hasProperty('MYAPP_UPLOAD_STORE_PASSWORD') ? project.property('MYAPP_UPLOAD_STORE_PASSWORD') : ''
+            keyAlias System.getenv('MYAPP_UPLOAD_KEY_ALIAS') ?: project.hasProperty('MYAPP_UPLOAD_KEY_ALIAS') ? project.property('MYAPP_UPLOAD_KEY_ALIAS') : ''
+            keyPassword System.getenv('MYAPP_UPLOAD_KEY_PASSWORD') ?: project.hasProperty('MYAPP_UPLOAD_KEY_PASSWORD') ? project.property('MYAPP_UPLOAD_KEY_PASSWORD') : ''
         }
     }
     buildTypes {
