@@ -10,9 +10,23 @@ app.use(express.json());
 // Sample data
 const apiKeys = new Map();
 apiKeys.set('demo-key-123', { name: 'Demo Key', isActive: true });
+apiKeys.set('Q3H9ySQXZEMmkGtPlbwTIWpn9bh4TYE0', { name: 'User Generated Key', isActive: true });
 
 const transactions = new Map();
 transactions.set('demo-key-123', [
+  {
+    id: 1,
+    amount: 1500.00,
+    currency: 'INR',
+    date: '2024-01-15 14:30:00',
+    vpa: 'user@upi',
+    reference: 'UPI123456789',
+    type: 'debit',
+    category: 'bank_transfer',
+    status: 'completed'
+  }
+]);
+transactions.set('Q3H9ySQXZEMmkGtPlbwTIWpn9bh4TYE0', [
   {
     id: 1,
     amount: 1500.00,
