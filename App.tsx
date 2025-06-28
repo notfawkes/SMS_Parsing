@@ -18,6 +18,15 @@ import {
 import SmsAndroid from 'react-native-get-sms-android';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import logo from './logo.png';
+/// <reference types="./png.d.ts" />
+
+// TypeScript module declarations for missing types
+// @ts-ignore
+declare module 'react-native-get-sms-android';
+// @ts-ignore
+declare module 'react-native-vector-icons/MaterialCommunityIcons';
+// @ts-ignore
+declare module '*.png';
 
 interface Transaction {
   amount: string;
@@ -42,8 +51,6 @@ export default function App() {
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'All' | 'Manual' | 'Bank'>('All');
-  const [apiUrl, setApiUrl] = useState('');
-  const [apiKey, setApiKey] = useState('');
   const [sendStatus, setSendStatus] = useState('');
   
   // New state for API key management
@@ -52,7 +59,7 @@ export default function App() {
   const [newApiKeyName, setNewApiKeyName] = useState('');
   const [selectedApiKey, setSelectedApiKey] = useState<ApiKey | null>(null);
   const [showApiDetails, setShowApiDetails] = useState(false);
-  const [serverUrl, setServerUrl] = useState('https://your-app-name.onrender.com/api');
+  const [serverUrl, setServerUrl] = useState('https://sms-parsing-906i.onrender.com');
 
   useEffect(() => {
     (async () => {
@@ -89,29 +96,52 @@ export default function App() {
   };
 
   // Create a new API key
-  const createApiKey = () => {
+  const createApiKey = async () => {
     if (!newApiKeyName.trim()) {
       Alert.alert('Error', 'Please enter a name for the API key');
       return;
     }
 
-    const newKey: ApiKey = {
-      id: Date.now().toString(),
-      key: generateApiKey(),
-      name: newApiKeyName.trim(),
-      createdAt: new Date().toISOString(),
-      isActive: true,
-    };
+    try {
+      // Generate API key through the server
+      const response = await fetch(`${serverUrl}/generate-key`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: newApiKeyName.trim()
+        }),
+      });
 
-    const updatedKeys = [...apiKeys, newKey];
-    setApiKeys(updatedKeys);
-    saveApiKeys(updatedKeys);
-    setNewApiKeyName('');
-    setShowApiKeyModal(false);
-    
-    // Show the newly created key
-    setSelectedApiKey(newKey);
-    setShowApiDetails(true);
+      if (!response.ok) {
+        throw new Error('Failed to generate API key');
+      }
+
+      const result = await response.json();
+      
+      const newKey: ApiKey = {
+        id: Date.now().toString(),
+        key: result.apiKey,
+        name: newApiKeyName.trim(),
+        createdAt: result.keyInfo.createdAt,
+        isActive: true,
+      };
+
+      const updatedKeys = [...apiKeys, newKey];
+      setApiKeys(updatedKeys);
+      saveApiKeys(updatedKeys);
+      setNewApiKeyName('');
+      setShowApiKeyModal(false);
+      
+      // Show the newly created key
+      setSelectedApiKey(newKey);
+      setShowApiDetails(true);
+      
+      Alert.alert('Success', 'API key generated successfully!');
+    } catch (error: any) {
+      Alert.alert('Error', `Failed to generate API key: ${error.message}`);
+    }
   };
 
   // Delete an API key
@@ -197,12 +227,12 @@ export default function App() {
 
     SmsAndroid.list(
       JSON.stringify(filter),
-      (fail) => {
+      (fail: any) => {
         console.error('SMS read failed:', fail);
         setError('Unable to read SMS');
         setLoading(false);
       },
-      (count, smsList) => {
+      (count: any, smsList: any) => {
         try {
           const messages = JSON.parse(smsList);
           console.log('🔍 Total SMS found:', messages.length);
@@ -243,7 +273,7 @@ export default function App() {
           setBalance(latestBalance);
           setTransactions(txs);
           setLoading(false);
-        } catch (err) {
+        } catch (err: any) {
           console.error('Parsing exception:', err);
           setError('Error parsing SMS content');
           setLoading(false);
@@ -266,22 +296,48 @@ export default function App() {
   });
 
   const sendDataToAPI = async () => {
-    if (!apiUrl) {
-      setSendStatus('Please enter an API URL.');
+    if (!selectedApiKey) {
+      setSendStatus('Please select an API key first.');
       return;
     }
+    
+    if (transactions.length === 0) {
+      setSendStatus('No transactions to send.');
+      return;
+    }
+
     try {
-      const response = await fetch(apiUrl, {
+      const structuredData = getStructuredData();
+      
+      const response = await fetch(`${serverUrl}/store-transactions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': apiKey,
+          'X-API-Key': selectedApiKey.key,
         },
-        body: JSON.stringify(transactions),
+        body: JSON.stringify({
+          transactions: structuredData.transactions
+        }),
       });
-      if (!response.ok) throw new Error('Failed to send data');
-      setSendStatus('Data sent successfully!');
-    } catch (error) {
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to send data');
+      }
+      
+      const result = await response.json();
+      setSendStatus(`Data sent successfully! ${result.storedCount} transactions stored.`);
+      
+      // Update the API key's last used timestamp
+      const updatedKeys = apiKeys.map(key => 
+        key.id === selectedApiKey.id 
+          ? { ...key, lastUsed: new Date().toISOString() }
+          : key
+      );
+      setApiKeys(updatedKeys);
+      saveApiKeys(updatedKeys);
+      
+    } catch (error: any) {
       setSendStatus('Error sending data: ' + error.message);
     }
   };
@@ -406,22 +462,48 @@ export default function App() {
       )}
       <View style={{ margin: 16, backgroundColor: '#181A2A', borderRadius: 12, padding: 16 }}>
         <Text style={{ color: '#fff', fontWeight: 'bold', marginBottom: 8 }}>Send Transactions to API</Text>
-        <TextInput
-          placeholder="Enter API URL"
-          placeholderTextColor="#888"
-          value={apiUrl}
-          onChangeText={setApiUrl}
-          style={{ backgroundColor: '#23254A', color: '#fff', marginBottom: 8, padding: 10, borderRadius: 8 }}
-        />
-        <TextInput
-          placeholder="Enter API Key"
-          placeholderTextColor="#888"
-          value={apiKey}
-          onChangeText={setApiKey}
-          style={{ backgroundColor: '#23254A', color: '#fff', marginBottom: 8, padding: 10, borderRadius: 8 }}
-        />
-        <Button title="Send Data" onPress={sendDataToAPI} color="#2E4BFF" />
-        {!!sendStatus && <Text style={{ color: '#FFD600', marginTop: 8 }}>{sendStatus}</Text>}
+        {selectedApiKey ? (
+          <>
+            <View style={{ backgroundColor: '#23254A', padding: 12, borderRadius: 8, marginBottom: 12 }}>
+              <Text style={{ color: '#FFD600', fontSize: 12, marginBottom: 4 }}>Selected API Key:</Text>
+              <Text style={{ color: '#fff', fontSize: 14 }}>{selectedApiKey.name}</Text>
+              <Text style={{ color: '#888', fontSize: 12 }}>{selectedApiKey.key.substring(0, 16)}...</Text>
+            </View>
+            <TouchableOpacity
+              style={{
+                backgroundColor: '#2E4BFF',
+                padding: 12,
+                borderRadius: 8,
+                alignItems: 'center',
+                marginBottom: 8
+              }}
+              onPress={sendDataToAPI}
+            >
+              <Text style={{ color: '#fff', fontWeight: 'bold' }}>
+                Send {transactions.length} Transactions
+              </Text>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <View style={{ backgroundColor: '#23254A', padding: 16, borderRadius: 8, alignItems: 'center' }}>
+            <Icon name="key-outline" size={32} color="#666" style={{ marginBottom: 8 }} />
+            <Text style={{ color: '#888', textAlign: 'center' }}>
+              Select an API key above to send your transactions
+            </Text>
+          </View>
+        )}
+        {!!sendStatus && (
+          <View style={{ 
+            backgroundColor: sendStatus.includes('Error') ? '#4A1C1C' : '#1C4A1C', 
+            padding: 8, 
+            borderRadius: 6, 
+            marginTop: 8 
+          }}>
+            <Text style={{ color: sendStatus.includes('Error') ? '#FF6B6B' : '#4CAF50', fontSize: 12 }}>
+              {sendStatus}
+            </Text>
+          </View>
+        )}
       </View>
       <View style={{ height: 40 }} />
 

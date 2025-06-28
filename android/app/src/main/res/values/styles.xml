@@ -6,13 +6,10 @@
         <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
     </style>
 
-    <!-- Splash screen theme for Android 12+ SplashScreen API -->
-    <style name="SplashTheme" parent="Theme.SplashScreen">
+    <!-- Splash screen theme - using standard AppCompat theme -->
+    <style name="SplashTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
         <!-- Set the splash screen background color -->
-        <item name="windowSplashScreenBackground">@android:color/white</item>
-        <!-- Set the splash screen icon -->
-        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
-        <item name="windowSplashScreenIconBackgroundColor">@android:color/white</item>
+        <item name="android:windowBackground">@android:color/white</item>
     </style>
 
 </resources>
