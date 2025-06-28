@@ -199,17 +199,32 @@ export default function App() {
         totalTransactions: transactions.length,
         lastUpdated: new Date().toISOString(),
       },
-      transactions: transactions.map((tx, index) => ({
-        id: index + 1,
-        amount: parseFloat(tx.amount.replace(/,/g, '')),
-        currency: 'INR',
-        date: tx.date,
-        vpa: tx.vpa,
-        reference: tx.ref,
-        type: 'debit',
-        category: 'bank_transfer',
-        status: 'completed',
-      })),
+      transactions: transactions.map((tx, index) => {
+        // Safely parse amount, handle potential errors
+        let parsedAmount;
+        try {
+          parsedAmount = parseFloat(tx.amount.replace(/,/g, ''));
+          if (isNaN(parsedAmount)) {
+            console.warn(`Invalid amount format: ${tx.amount}`);
+            parsedAmount = 0;
+          }
+        } catch (error) {
+          console.error(`Error parsing amount ${tx.amount}:`, error);
+          parsedAmount = 0;
+        }
+        
+        return {
+          id: index + 1,
+          amount: parsedAmount,
+          currency: 'INR',
+          date: tx.date,
+          vpa: tx.vpa,
+          reference: tx.ref,
+          type: 'debit',
+          category: 'bank_transfer',
+          status: 'completed',
+        };
+      }),
       metadata: {
         source: 'SMS_BANK_READER',
         version: '1.0.0',
@@ -308,6 +323,12 @@ export default function App() {
 
     try {
       const structuredData = getStructuredData();
+      console.log('📤 Sending structured data:', JSON.stringify(structuredData, null, 2));
+      
+      const requestBody = {
+        transactions: structuredData.transactions
+      };
+      console.log('📤 Request body:', JSON.stringify(requestBody, null, 2));
       
       const response = await fetch(`${serverUrl}/store-transactions`, {
         method: 'POST',
@@ -315,17 +336,20 @@ export default function App() {
           'Content-Type': 'application/json',
           'X-API-Key': selectedApiKey.key,
         },
-        body: JSON.stringify({
-          transactions: structuredData.transactions
-        }),
+        body: JSON.stringify(requestBody),
       });
+      
+      console.log('📥 Response status:', response.status);
+      console.log('📥 Response headers:', response.headers);
       
       if (!response.ok) {
         const errorData = await response.json();
+        console.error('❌ Error response:', errorData);
         throw new Error(errorData.message || 'Failed to send data');
       }
       
       const result = await response.json();
+      console.log('✅ Success response:', result);
       setSendStatus(`Data sent successfully! ${result.storedCount} transactions stored.`);
       
       // Update the API key's last used timestamp
@@ -338,6 +362,7 @@ export default function App() {
       saveApiKeys(updatedKeys);
       
     } catch (error: any) {
+      console.error('❌ Error in sendDataToAPI:', error);
       setSendStatus('Error sending data: ' + error.message);
     }
   };
@@ -460,6 +485,34 @@ export default function App() {
           )}
         </View>
       )}
+      <View style={{ margin: 16, backgroundColor: '#1A1C2A', borderRadius: 12, padding: 16 }}>
+        <Text style={{ color: '#FFD600', fontWeight: 'bold', marginBottom: 8 }}>Debug: Parsed Transactions</Text>
+        <Text style={{ color: '#fff', fontSize: 12, marginBottom: 4 }}>
+          Total Transactions Found: {transactions.length}
+        </Text>
+        {transactions.length > 0 ? (
+          <View style={{ marginTop: 8 }}>
+            {transactions.slice(0, 3).map((tx, index) => (
+              <View key={index} style={{ backgroundColor: '#23254A', padding: 8, borderRadius: 6, marginBottom: 4 }}>
+                <Text style={{ color: '#4CAF50', fontSize: 10 }}>Transaction {index + 1}:</Text>
+                <Text style={{ color: '#fff', fontSize: 10 }}>Amount: ₹{tx.amount}</Text>
+                <Text style={{ color: '#fff', fontSize: 10 }}>Date: {tx.date}</Text>
+                <Text style={{ color: '#fff', fontSize: 10 }}>VPA: {tx.vpa}</Text>
+                <Text style={{ color: '#fff', fontSize: 10 }}>Ref: {tx.ref}</Text>
+              </View>
+            ))}
+            {transactions.length > 3 && (
+              <Text style={{ color: '#888', fontSize: 10, textAlign: 'center' }}>
+                ... and {transactions.length - 3} more transactions
+              </Text>
+            )}
+          </View>
+        ) : (
+          <Text style={{ color: '#888', fontSize: 12, textAlign: 'center' }}>
+            No transactions parsed yet. Make sure you have bank SMS messages.
+          </Text>
+        )}
+      </View>
       <View style={{ margin: 16, backgroundColor: '#181A2A', borderRadius: 12, padding: 16 }}>
         <Text style={{ color: '#fff', fontWeight: 'bold', marginBottom: 8 }}>Send Transactions to API</Text>
         {selectedApiKey ? (
